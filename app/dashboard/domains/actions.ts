@@ -32,7 +32,7 @@ export async function syncDomain(f:FormData){
 export async function setPrimaryDomain(f:FormData){
  const storeId=text(f,"store_id"),domainId=text(f,"domain_id");if(!z.string().uuid().safeParse(storeId).success||!z.string().uuid().safeParse(domainId).success)throw new Error("INVALID_REQUEST");
  const s=await admin(storeId);if(!isConfigured())throw new Error("CONFIGURATION REQUIRED: VERCEL_TOKEN");
- const {data:target}=await s.from("domains").select("id,domain,vercel_project_id,provider_verified,status").eq("id",domainId).eq("store_id",storeId).maybeSingle();if(!target||!target.vercel_project_id)throw new Error("DOMAIN_NOT_FOUND");if(!target.provider_verified||!["verified","active"].includes(target.status))throw new Error("DOMAIN_NOT_VERIFIED");
+ const {data:target}=await s.from("domains").select("id,domain,vercel_project_id,provider_verified,status").eq("id",domainId).eq("store_id",storeId).maybeSingle();if(!target||!target.vercel_project_id)throw new Error("DOMAIN_NOT_FOUND");if(!target.provider_verified||target.status!=="active")throw new Error("DOMAIN_NOT_READY_FOR_PRIMARY");
  const {data:others}=await s.from("domains").select("id,domain,vercel_project_id").eq("store_id",storeId).eq("vercel_project_id",target.vercel_project_id).neq("id",domainId).in("status",["verified","active"]);
  for(const other of others||[])await updateVercelDomain(target.vercel_project_id,other.domain,{redirect:target.domain,redirectStatusCode:308});
  await updateVercelDomain(target.vercel_project_id,target.domain,{redirect:null});
