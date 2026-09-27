@@ -1,0 +1,4 @@
+import "server-only";const base="https://api.vercel.com";
+function headers(){const t=process.env.VERCEL_TOKEN;if(!t)throw new Error("CONFIGURATION REQUIRED: VERCEL_TOKEN");return{Authorization:"Bearer "+t,"Content-Type":"application/json"}}
+export async function addVercelDomain(projectId:string,domain:string){const r=await fetch(base+"/v10/projects/"+encodeURIComponent(projectId)+"/domains",{method:"POST",headers:headers(),body:JSON.stringify({name:domain}),cache:"no-store"});const text=await r.text();if(!r.ok)throw new Error("VERCEL_DOMAIN_ERROR:"+r.status);return JSON.parse(text)}
+export async function verifyVercelDomain(projectId:string,domain:string){const r=await fetch(base+"/v9/projects/"+encodeURIComponent(projectId)+"/domains/"+encodeURIComponent(domain),{headers:headers(),cache:"no-store"});const text=await r.text();if(!r.ok)throw new Error("VERCEL_DOMAIN_VERIFY_ERROR:"+r.status);return JSON.parse(text)}
