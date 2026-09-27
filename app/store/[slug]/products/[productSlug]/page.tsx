@@ -1,3 +1,56 @@
-import Link from "next/link";import {addToCart} from "../../cart/actions";import {createSupabaseServerClient} from "@/lib/supabase/server";import {notFound} from "next/navigation";
-export async function generateMetadata({params}:{params:Promise<{slug:string;productSlug:string}>}){const {slug,productSlug}=await params;const s=await createSupabaseServerClient();const {data:p}=await s.from("products").select("name,description,seo").eq("slug",productSlug).eq("status","active").eq("store_id",(await s.from("stores").select("id").eq("slug",slug).eq("status","active").single()).data?.id||"").maybeSingle();return {title:p?.seo?.title||p?.name||"Product",description:p?.seo?.description||p?.description||undefined}}
-export default async function ProductPage({params}:{params:Promise<{slug:string;productSlug:string}>}){const {slug,productSlug}=await params;const s=await createSupabaseServerClient();const {data:store}=await s.from("stores").select("id,name").eq("slug",slug).eq("status","active").maybeSingle();if(!store)notFound();const {data:p}=await s.from("products").select("id,name,description,price,compare_at_price,brand,stock,sku,video_url").eq("store_id",store.id).eq("slug",productSlug).eq("status","active").maybeSingle();if(!p)notFound();const [{data:images},{data:variants}]=await Promise.all([s.from("images").select("id,url,alt_text,position").eq("store_id",store.id).eq("product_id",p.id).order("position"),s.from("variants").select("id,title,sku,price,stock,options,image_url").eq("store_id",store.id).eq("product_id",p.id).order("created_at")]);return <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6"><Link href={"/store/"+slug+"/products"} className="text-sm text-slate-500">← Back to products</Link><div className="mt-6 grid gap-10 lg:grid-cols-2"><div className="grid grid-cols-2 gap-3">{(images??[]).length?(images??[]).map((i,index)=><img key={i.id} src={i.url} alt={i.alt_text||p.name} className={index===0?"col-span-2 aspect-[4/3] w-full rounded-3xl object-cover":"aspect-square w-full rounded-2xl object-cover"}/>):<div className="col-span-2 aspect-square rounded-3xl bg-slate-100"/>}</div><div><p className="text-sm text-slate-500">{p.brand||store.name}</p><h1 className="mt-2 text-3xl font-bold">{p.name}</h1><div className="mt-5 flex items-center gap-3"><span className="text-2xl font-semibold">₹{Number(p.price).toLocaleString("en-IN")}</span>{p.compare_at_price?<span className="text-slate-400 line-through">₹{Number(p.compare_at_price).toLocaleString("en-IN")}</span>:null}</div><p className="mt-6 whitespace-pre-line text-slate-600">{p.description||"Product details will be available here."}</p>{(variants??[]).length?<div className="mt-8"><h2 className="font-semibold">Options</h2><div className="mt-3 grid gap-2">{(variants??[]).map(v=><div key={v.id} className="rounded-xl border border-slate-200 p-3 text-sm">{v.title} · ₹{Number(v.price).toLocaleString("en-IN")} · {v.stock>0?"Available":"Out of stock"}</div>)}</div></div>:null}<form action={addToCart} className="mt-8 grid gap-3"><input type="hidden" name="store_id" value={store.id}/><input type="hidden" name="store_slug" value={slug}/><input type="hidden" name="product_id" value={p.id}/>{(variants??[]).length?<select name="variant_id" required className="rounded-xl border border-slate-200 p-3"><option value="">Select an option</option>{(variants??[]).map(v=><option key={v.id} value={v.id} disabled={v.stock<=0}>{v.title} · ₹{Number(v.price).toLocaleString("en-IN")}{v.stock<=0?" · Out of stock":""}</option>)}</select>:null}<input name="quantity" type="number" min="1" max={Math.max(1,p.stock)} defaultValue="1" className="rounded-xl border border-slate-200 p-3"/><button className="rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Add to cart</button></form></div></div></section>}
+import Link from "next/link";
+import AnalyticsTracker from "@/components/analytics-tracker";
+import { addToCart } from "../../cart/actions";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string; productSlug: string }> }) {
+  const { slug, productSlug } = await params;
+  const s = await createSupabaseServerClient();
+  const { data: store } = await s.from("stores").select("id").eq("slug", slug).eq("status", "active").single();
+  const { data: p } = await s.from("products").select("name,description,seo").eq("slug", productSlug).eq("status", "active").eq("store_id", store?.id || "").maybeSingle();
+  return { title: p?.seo?.title || p?.name || "Product", description: p?.seo?.description || p?.description || undefined };
+}
+
+export default async function ProductPage({ params }: { params: Promise<{ slug: string; productSlug: string }> }) {
+  const { slug, productSlug } = await params;
+  const s = await createSupabaseServerClient();
+  const { data: store } = await s.from("stores").select("id,name").eq("slug", slug).eq("status", "active").maybeSingle();
+  if (!store) notFound();
+
+  const { data: p } = await s.from("products").select("id,name,description,price,compare_at_price,brand,stock,sku,video_url").eq("store_id", store.id).eq("slug", productSlug).eq("status", "active").maybeSingle();
+  if (!p) notFound();
+
+  const [{ data: images }, { data: variants }] = await Promise.all([
+    s.from("images").select("id,url,alt_text,position").eq("store_id", store.id).eq("product_id", p.id).order("position"),
+    s.from("variants").select("id,title,sku,price,stock,options,image_url").eq("store_id", store.id).eq("product_id", p.id).order("created_at"),
+  ]);
+
+  return <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+    <AnalyticsTracker storeSlug={slug} eventType="product_view" productId={p.id} />
+    <Link href={"/store/" + slug + "/products"} className="text-sm text-slate-500">← Back to products</Link>
+    <div className="mt-6 grid gap-10 lg:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3">
+        {(images ?? []).length ? (images ?? []).map((i, index) => <img key={i.id} src={i.url} alt={i.alt_text || p.name} className={index === 0 ? "col-span-2 aspect-[4/3] w-full rounded-3xl object-cover" : "aspect-square w-full rounded-2xl object-cover"} />) : <div className="col-span-2 aspect-square rounded-3xl bg-slate-100" />}
+      </div>
+      <div>
+        <p className="text-sm text-slate-500">{p.brand || store.name}</p>
+        <h1 className="mt-2 text-3xl font-bold">{p.name}</h1>
+        <div className="mt-5 flex items-center gap-3">
+          <span className="text-2xl font-semibold">₹{Number(p.price).toLocaleString("en-IN")}</span>
+          {p.compare_at_price ? <span className="text-slate-400 line-through">₹{Number(p.compare_at_price).toLocaleString("en-IN")}</span> : null}
+        </div>
+        <p className="mt-6 whitespace-pre-line text-slate-600">{p.description || "Product details will be available here."}</p>
+        {(variants ?? []).length ? <div className="mt-8"><h2 className="font-semibold">Options</h2><div className="mt-3 grid gap-2">{(variants ?? []).map(v => <div key={v.id} className="rounded-xl border border-slate-200 p-3 text-sm">{v.title} · ₹{Number(v.price).toLocaleString("en-IN")} · {v.stock > 0 ? "Available" : "Out of stock"}</div>)}</div></div> : null}
+        <form action={addToCart} className="mt-8 grid gap-3">
+          <input type="hidden" name="store_id" value={store.id} />
+          <input type="hidden" name="store_slug" value={slug} />
+          <input type="hidden" name="product_id" value={p.id} />
+          {(variants ?? []).length ? <select name="variant_id" required className="rounded-xl border border-slate-200 p-3"><option value="">Select an option</option>{(variants ?? []).map(v => <option key={v.id} value={v.id} disabled={v.stock <= 0}>{v.title} · ₹{Number(v.price).toLocaleString("en-IN")}{v.stock <= 0 ? " · Out of stock" : ""}</option>)}</select> : null}
+          <input name="quantity" type="number" min="1" max={Math.max(1, p.stock)} defaultValue="1" className="rounded-xl border border-slate-200 p-3" />
+          <button className="rounded-xl bg-slate-950 px-5 py-3 font-semibold text-white">Add to cart</button>
+        </form>
+      </div>
+    </div>
+  </section>;
+}
