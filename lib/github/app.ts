@@ -48,18 +48,10 @@ async function installationToken(installationId:number){
  })});
  return {token:String(data.token),expiresAt:String(data.expires_at)};
 }
-export async function createRepository(installationId:number,owner:string,name:string,isPrivate:boolean){
+export async function createRepository(installationId:number,owner:string,accountType:"Organization"|"User",name:string,isPrivate:boolean){
  const {token}=await installationToken(installationId);
- const path="/orgs/"+encodeURIComponent(owner)+"/repos";
- try{
-   return await request(path,{method:"POST",body:JSON.stringify({name,private:isPrivate,auto_init:true})},token);
- }catch(error){
-   if(owner) {
-     const userPath="/user/repos";
-     return await request(userPath,{method:"POST",body:JSON.stringify({name,private:isPrivate,auto_init:true})},token);
-   }
-   throw error;
- }
+ const path=accountType==="Organization"?"/orgs/"+encodeURIComponent(owner)+"/repos":"/user/repos";
+ return request(path,{method:"POST",body:JSON.stringify({name,private:isPrivate,auto_init:true})},token);
 }
 export async function putFile(installationId:number,fullName:string,path:string,content:string,message:string){
  const {token}=await installationToken(installationId);
