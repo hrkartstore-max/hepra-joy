@@ -1,0 +1,18 @@
+import {createSupabaseServerClient} from "@/lib/supabase/server";
+import {deployToVercel,refreshVercelDeployment} from "./actions";
+export default async function VercelPage(){
+ const s=await createSupabaseServerClient();
+ const {data:stores}=await s.from("stores").select("id,name,slug").order("created_at",{ascending:true}).limit(20);
+ const store=stores?.[0];
+ const {data:repo}=store?await s.from("github_repositories").select("id,full_name,default_branch").eq("store_id",store.id).maybeSingle():{data:null};
+ const {data:project}=store?await s.from("vercel_projects").select("id,vercel_project_id,project_name,git_repo,status,production_url,last_deployment_id,last_deployment_url,last_error,last_verified_at,attempt_count").eq("store_id",store.id).maybeSingle():{data:null};
+ const {data:deployment}=store?await s.from("deployments").select("id,provider_deployment_id,state,url,branch,error_code,created_at,ready_at").eq("store_id",store.id).order("created_at",{ascending:false}).limit(1).maybeSingle():{data:null};
+ const configured=Boolean(process.env.VERCEL_TOKEN);
+ return <section className="p-5 sm:p-8"><h1 className="text-2xl font-bold">Vercel Automation</h1><p className="mt-2 max-w-2xl text-sm text-slate-400">Create a Vercel project from the connected GitHub repository, configure runtime environment variables, deploy, monitor and verify the provider deployment.</p>
+ <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Integration health</h2><p className="mt-1 text-sm text-slate-400">{configured?"Vercel API configured":"Vercel token not configured"}</p></div><span className="rounded-full bg-white/10 px-3 py-1 text-xs">{project?.status==="ready"?"CONNECTED":project?.status==="failed"?"ERROR":"CONFIGURATION REQUIRED"}</span></div>
+ {!configured&&<p className="mt-4 text-xs text-amber-300">Required: VERCEL_TOKEN (server-only).</p>}
+ {store&&repo&&configured&&<form action={deployToVercel} className="mt-5"><input type="hidden" name="store_id" value={store.id}/><input type="hidden" name="repository_id" value={repo.id}/><button className="rounded-xl bg-white px-4 py-3 font-semibold text-black">{project?.vercel_project_id?"Deploy / redeploy":"Create project & deploy"}</button></form>}
+ {project&&<div className="mt-5 text-sm text-slate-400"><p>Status: {project.status} · Attempts: {project.attempt_count}</p>{project.vercel_project_id&&<p className="mt-1">Vercel project: {project.vercel_project_id}</p>}{project.production_url&&<p className="mt-1">Production: {project.production_url}</p>}{project.last_error&&<p className="mt-1 text-red-300">{project.last_error}</p>}</div>}</div>
+ {deployment&&<div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Latest deployment</h2><p className="mt-1 text-sm text-slate-400">{deployment.provider_deployment_id} · {deployment.branch}</p></div><span className="rounded-full bg-white/10 px-3 py-1 text-xs">{deployment.state}</span></div>{deployment.url&&<p className="mt-3 text-sm text-slate-300">{deployment.url}</p>}{project?.status!=="ready"&&<form action={refreshVercelDeployment} className="mt-4"><input type="hidden" name="store_id" value={store?.id}/><input type="hidden" name="deployment_id" value={deployment.id}/><button className="rounded-xl border border-white/10 px-4 py-2">Check provider status</button></form>}</div>}
+ </section>;
+}
