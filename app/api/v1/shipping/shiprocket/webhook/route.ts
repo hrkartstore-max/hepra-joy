@@ -1,2 +1,38 @@
-import {NextRequest,NextResponse} from "next/server"; import {createAdminSupabaseClient} from "@/lib/supabase/admin"; import {verifyShiprocketWebhook} from "@/lib/shipping/shiprocket";
-export async function POST(req:NextRequest){const raw=await req.text();const signature=req.headers.get("x-shiprocket-signature")||"";const secret=process.env.SHIPROCKET_WEBHOOK_SECRET;if(!secret)return NextResponse.json({status:"CONFIGURATION REQUIRED"},{status:503});if(!signature||!verifyShiprocketWebhook(raw,signature,secret))return NextResponse.json({error:"INVALID_SIGNATURE"},{status:401});let p:any;try{p=JSON.parse(raw)}catch{return NextResponse.json({error:"INVALID_JSON"},{status:400})};const id=String(p.event_id||p.shipment_id||p.awb||"");if(!id)return NextResponse.json({error:"EVENT_ID_REQUIRED"},{status:400});const admin=createAdminSupabaseClient();let q=admin.from("shipments").select("id");if(p.shipment_id)q=q.eq("shipment_id",String(p.shipment_id));else if(p.awb)q=q.eq("awb",String(p.awb));else return NextResponse.json({status:"IGNORED"});const {data:shipment}=await q.limit(1).maybeSingle();if(!shipment)return NextResponse.json({status:"IGNORED"});const {error}=await admin.from("shipment_events").insert({shipment_id:shipment.id,event_id:id,event_type:String(p.event_type||"SHIPMENT_UPDATE"),status:p.status?String(p.status).toLowerCase():null,payload:p});if(error?.code==="23505")return NextResponse.json({status:"DUPLICATE"});if(error)return NextResponse.json({error:"EVENT_STORE_FAILED"},{status:500});if(p.status)await admin.from("shipments").update({status:String(p.status).toLowerCase(),payload:p,updated_at:new Date().toISOString()}).eq("id",shipment.id);return NextResponse.json({status:"OK"});}
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { verifyShiprocketWebhook } from "@/lib/shipping/shiprocket";
+
+export async function POST(req: NextRequest) {
+  const raw = await req.text();
+  const signature = req.headers.get("x-shiprocket-signature") || "";
+  const secret = process.env.SHIPROCKET_WEBHOOK_SECRET;
+  if (!secret) return NextResponse.json({ status: "CONFIGURATION REQUIRED" }, { status: 503 });
+  if (!signature || !verifyShiprocketWebhook(raw, signature, secret)) return NextResponse.json({ error: "INVALID_SIGNATURE" }, { status: 401 });
+
+  let p: Record<string, unknown>;
+  try { p = JSON.parse(raw) as Record<string, unknown>; } catch { return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 }); }
+
+  const id = String(p.event_id || p.shipment_id || p.awb || "");
+  if (!id) return NextResponse.json({ error: "EVENT_ID_REQUIRED" }, { status: 400 });
+
+  const admin = createSupabaseAdminClient();
+  let q = admin.from("shipments").select("id");
+  if (p.shipment_id) q = q.eq("shipment_id", String(p.shipment_id));
+  else if (p.awb) q = q.eq("awb", String(p.awb));
+  else return NextResponse.json({ status: "IGNORED" });
+
+  const { data: shipment } = await q.limit(1).maybeSingle();
+  if (!shipment) return NextResponse.json({ status: "IGNORED" });
+
+  const { error } = await admin.from("shipment_events").insert({
+    shipment_id: shipment.id,
+    event_id: id,
+    event_type: String(p.event_type || "SHIPMENT_UPDATE"),
+    status: p.status ? String(p.status).toLowerCase() : null,
+    payload: p,
+  });
+  if (error?.code === "23505") return NextResponse.json({ status: "DUPLICATE" });
+  if (error) return NextResponse.json({ error: "EVENT_STORE_FAILED" }, { status: 500 });
+  if (p.status) await admin.from("shipments").update({ status: String(p.status).toLowerCase(), payload: p, updated_at: new Date().toISOString() }).eq("id", shipment.id);
+  return NextResponse.json({ status: "OK" });
+}
