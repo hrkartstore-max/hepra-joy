@@ -1,7 +1,7 @@
 import "server-only";
 const base="https://api.vercel.com";
 function headers(){const t=process.env.VERCEL_TOKEN;if(!t)throw new Error("CONFIGURATION REQUIRED: VERCEL_TOKEN");return{Authorization:"Bearer "+t,"Content-Type":"application/json"}}
-async function req<T=any>(path:string,init:RequestInit={}):Promise<T>{const r=await fetch(base+path,{...init,headers:{...headers(),...(init.headers||{})},cache:"no-store"});const raw=await r.text();let data:any=null;try{data=raw?JSON.parse(raw):null}catch{}if(!r.ok)throw new Error("VERCEL_DOMAIN_PROVIDER_ERROR:"+r.status);return data as T}
+async function req<T=unknown>(path:string,init:RequestInit={}):Promise<T>{const r=await fetch(base+path,{...init,headers:{...headers(),...(init.headers||{})},cache:"no-store"});const raw=await r.text();let data:any=null;try{data=raw?JSON.parse(raw):null}catch{}if(!r.ok)throw new Error("VERCEL_DOMAIN_PROVIDER_ERROR:"+r.status);return data as T}
 export function isConfigured(){return Boolean(process.env.VERCEL_TOKEN)}
 export async function addVercelDomain(projectId:string,domain:string){return req("/v9/projects/"+encodeURIComponent(projectId)+"/domains",{method:"POST",body:JSON.stringify({name:domain})})}
 export async function getVercelDomain(projectId:string,domain:string){return req("/v9/projects/"+encodeURIComponent(projectId)+"/domains/"+encodeURIComponent(domain))}
