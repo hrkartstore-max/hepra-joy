@@ -25,7 +25,7 @@ export async function deployToVercel(f:FormData){
  const {data:supabaseProject}=await s.from("supabase_projects").select("project_ref,project_url,publishable_key,status").eq("store_id",storeId).maybeSingle();
  if(!supabaseProject||supabaseProject.status!=="ready"||!supabaseProject.project_ref||!supabaseProject.publishable_key) throw new Error("SUPABASE_PROJECT_NOT_READY");
  const name=(store.slug||"hepra-store").toLowerCase().replace(/[^a-z0-9-]/g,"-").slice(0,50)||"hepra-store";
- const {data:vp}=await s.from("vercel_projects").upsert({store_id:storeId,project_name:name,git_repo:repo.full_name,framework:"nextjs",status:"queued",updated_at:new Date().toISOString()},{onConflict:"store_id"}).select("id,vercel_project_id,provider_deployment_id").single();
+ const {data:vp}=await s.from("vercel_projects").upsert({store_id:storeId,project_name:name,git_repo:repo.full_name,framework:"nextjs",status:"queued",updated_at:new Date().toISOString()},{onConflict:"store_id"}).select("id,vercel_project_id").single();
  if(!vp) throw new Error("VERCEL_PROJECT_RECORD_FAILED");
  try{
    let vercelProjectId=vp.vercel_project_id as string|undefined;
@@ -34,7 +34,7 @@ export async function deployToVercel(f:FormData){
      vercelProjectId=p.id;
      await s.from("vercel_projects").update({vercel_project_id:p.id,status:"queued",last_error:null,updated_at:new Date().toISOString()}).eq("id",vp.id);
    }
-   await addEnvironmentVariables(vercelProjectId,[
+   if(!vp.vercel_project_id) await addEnvironmentVariables(vercelProjectId,[
      {key:"NEXT_PUBLIC_SUPABASE_URL",value:String(supabaseProject.project_url),target:["production","preview","development"],type:"plain"},
      {key:"NEXT_PUBLIC_SUPABASE_ANON_KEY",value:String(supabaseProject.publishable_key),target:["production","preview","development"],type:"plain"},
      {key:"NEXT_PUBLIC_SITE_URL",value:process.env.NEXT_PUBLIC_SITE_URL||"http://localhost:3000",target:["production","preview","development"],type:"plain"}
@@ -53,7 +53,7 @@ export async function refreshVercelDeployment(f:FormData){
  const storeId=text(f,"store_id"),deploymentId=text(f,"deployment_id");
  if(!z.string().uuid().safeParse(storeId).success||!deploymentId) throw new Error("INVALID_REQUEST");
  const s=await admin(storeId);
- const {data:deployment}=await s.from("deployments").select("id,vercel_project_id").eq("id",deploymentId).eq("store_id",storeId).maybeSingle();
+ const {data:deployment}=await s.from("deployments").select("id,vercel_project_id,provider_deployment_id").eq("id",deploymentId).eq("store_id",storeId).maybeSingle();
  if(!deployment) throw new Error("DEPLOYMENT_NOT_FOUND");
  const d=await getDeployment(String(deployment.provider_deployment_id||deploymentId));
  const state=String(d.readyState||d.state||"").toUpperCase();
