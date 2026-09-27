@@ -40,7 +40,7 @@ export async function createGithubRepository(f:FormData){
  if(existingOp?.status==="completed") {revalidatePath("/dashboard/github");return;}
  const {data:op}=await s.from("github_operations").upsert({store_id:storeId,operation_type:"create_repository",idempotency_key:idem,status:"processing",request:{name,isPrivate:isPrivate==="true"}},{onConflict:"store_id,idempotency_key"}).select("id").single();
  try{
-   const r=await createRepository(connection.installation_id,connection.account_login,name,isPrivate==="true");
+   const r=await createRepository(connection.installation_id,connection.account_login,connection.account_type,name,isPrivate==="true");
    const {error:repoError}=await s.from("github_repositories").upsert({
      store_id:storeId,connection_id:connection.id,repository_id:r.id,full_name:r.full_name,default_branch:r.default_branch||"main",
      private:Boolean(r.private),html_url:r.html_url,updated_at:new Date().toISOString()
