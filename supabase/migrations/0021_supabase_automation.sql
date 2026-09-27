@@ -16,7 +16,7 @@ create table if not exists public.supabase_provisioning_jobs (
  state text not null default 'queued' check(state in ('queued','processing','completed','failed','retrying')),
  step text not null default 'create_project' check(step in ('create_project','wait_ready','migrations','configure_auth','configure_storage','verify')),
  attempt_count integer not null default 0, next_retry_at timestamptz, lock_token text, locked_at timestamptz,
- external_id text, result jsonb not null default '{}'::jsonb, error_code text,
+ external_id text, request jsonb not null default '{}'::jsonb, result jsonb not null default '{}'::jsonb, error_code text,
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
  unique(store_id,idempotency_key)
 );
