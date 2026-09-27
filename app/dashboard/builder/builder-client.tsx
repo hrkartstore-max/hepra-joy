@@ -1,5 +1,65 @@
 "use client";
-import {useEffect,useMemo,useState} from "react";import {saveBuilder,publishPage,restoreVersion} from "./actions";import type {BuilderSection} from "@/lib/builder-schema";
-const TYPES=["hero","banner","product_grid","categories","text","image","video","testimonials","faq","logo_strip","announcement","newsletter","cta","footer","social_instagram"];
-const defaults=(type:string,id:string):BuilderSection=>({id,type:type as any,position:0,config:{heading:type==="hero"?"Build your storefront":"Add "+type.replace("_"," "),text:"Edit this section in the properties panel.",buttonText:"Explore",background:"#111827"}});
-export default function Builder({initial}:{initial?:{storeId:string;storeSlug:string;pageId:string;sections:BuilderSection[];status?:string;versions?:{id:string;version:number;created_at:string}[]}}){const [data,setData]=useState(initial);const [selected,setSelected]=useState(0);const [history,setHistory]=useState<BuilderSection[][]>([]);const [future,setFuture]=useState<BuilderSection[][]>([]);const [saving,setSaving]=useState(false);const [viewport,setViewport]=useState<"desktop"|"tablet"|"mobile">("desktop");const sections=data?.sections??[];const current=sections[selected];const update=(next:BuilderSection[])=>{setHistory(h=>[...h,sections]);setFuture([]);setData(d=>d?{...d,sections:next.map((x,i)=>({...x,position:i}))}:d)};const add=(type:string)=>{const n=sections.length;update([...sections,defaults(type,crypto.randomUUID())]);setSelected(n)};const undo=()=>{const h=history.at(-1);if(!h)return;setFuture(f=>[...f,sections]);setHistory(x=>x.slice(0,-1));setData(d=>d?{...d,sections:h}:d)};const redo=()=>{const f=future.at(-1);if(!f)return;setHistory(h=>[...h,sections]);setFuture(x=>x.slice(0,-1));setData(d=>d?{...d,sections:f}:d)};useEffect(()=>{const id=setTimeout(()=>{if(data&&history.length){setSaving(true);const fd=new FormData();fd.set("store_id",data.storeId);fd.set("store_slug",data.storeSlug);fd.set("page_id",data.pageId);fd.set("sections",JSON.stringify(data.sections));saveBuilder(fd).finally(()=>setSaving(false))}},1200);return()=>clearTimeout(id)},[data?.sections]);const props=useMemo(()=>current,[current]);if(!data)return <div className="p-8">Create a store and homepage first.</div>;return <div className="min-h-screen"><div className="flex items-center justify-between border-b border-white/10 px-4 py-3"><div><h1 className="font-bold">Website Builder</h1><p className="text-xs text-slate-400">{saving?"Autosaving…":"All changes saved"}</p></div><div className="flex gap-2"><button onClick={undo} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Undo</button><button onClick={()=>setViewport("desktop")} className={"rounded-lg border px-3 py-2 text-xs "+(viewport==="desktop"?"border-cyan-300":"border-white/10")}>Desktop</button><button onClick={()=>setViewport("tablet")} className={"rounded-lg border px-3 py-2 text-xs "+(viewport==="tablet"?"border-cyan-300":"border-white/10")}>Tablet</button><button onClick={()=>setViewport("mobile")} className={"rounded-lg border px-3 py-2 text-xs "+(viewport==="mobile"?"border-cyan-300":"border-white/10")}>Mobile</button><button onClick={redo} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Redo</button><form action={publishPage} className="inline"><input type="hidden" name="store_id" value={data.storeId}/><input type="hidden" name="page_id" value={data.pageId}/><input type="hidden" name="store_slug" value={data.storeSlug}/><button className="rounded-lg border border-emerald-400/30 px-3 py-2 text-xs text-emerald-300">Publish</button></form><a href={"/store/"+data.storeSlug} target="_blank" className="rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-black">Preview</a></div></div><div className="grid min-h-[calc(100vh-65px)] grid-cols-[180px_1fr_280px]"><aside className="border-r border-white/10 p-3"><p className="mb-3 text-xs uppercase text-slate-500">Components</p>{TYPES.map(t=><button key={t} onClick={()=>add(t)} className="mb-1 w-full rounded-lg border border-white/5 px-3 py-2 text-left text-xs hover:bg-white/5">{t}</button>)}</aside><main className="bg-slate-950/70 p-5"><div className={"mx-auto min-h-[700px] rounded-xl bg-white p-5 text-slate-900 shadow-2xl "+(viewport==="mobile"?"max-w-sm":viewport==="tablet"?"max-w-2xl":"max-w-4xl")} bg-white p-5 text-slate-900 shadow-2xl"><div className="mb-4 flex justify-center gap-2 text-xs text-slate-400"><span>Desktop</span><span>Tablet</span><span>Mobile</span></div>{sections.length===0?<div className="grid min-h-[550px] place-items-center border-2 border-dashed border-slate-200 rounded-xl text-slate-400">Add your first section</div>:sections.map((x,i)=><button key={x.id} onClick={()=>setSelected(i)} className={"mb-3 block w-full rounded-xl border p-6 text-left "+(i===selected?"border-blue-500 bg-blue-50":"border-slate-200")}><span className="text-xs uppercase text-slate-400">{x.type}</span><h3 className="mt-2 text-lg font-semibold">{String(x.config.heading??x.type)}</h3><p className="mt-1 text-sm text-slate-500">{String(x.config.text??"")}</p></button>)}</div></main><aside className="border-l border-white/10 p-4">{props?<><p className="text-xs uppercase text-slate-500">Properties</p><p className="mt-2 font-semibold">{props.type}</p><label className="mt-5 block text-xs text-slate-400">Heading</label><input value={String(props.config.heading??"")} onChange={e=>update(sections.map((x,i)=>i===selected?{...x,config:{...x.config,heading:e.target.value}}:x))} className="mt-1 w-full rounded-lg bg-white/5 p-2 text-sm"/><label className="mt-4 block text-xs text-slate-400">Text</label><textarea value={String(props.config.text??"")} onChange={e=>update(sections.map((x,i)=>i===selected?{...x,config:{...x.config,text:e.target.value}}:x))} className="mt-1 w-full rounded-lg bg-white/5 p-2 text-sm"/><button onClick={()=>update(sections.filter((_,i)=>i!==selected))} className="mt-5 rounded-lg border border-red-400/30 px-3 py-2 text-xs text-red-300">Delete section</button></>:<p className="text-sm text-slate-500">Select a section</p>}</aside></div></div>}
+import { useEffect, useMemo, useState } from "react";
+import { saveBuilder, publishPage, restoreVersion } from "./actions";
+import type { BuilderSection } from "@/lib/builder-schema";
+
+const TYPES = ["hero","banner","product_grid","categories","text","image","video","testimonials","faq","logo_strip","announcement","newsletter","cta","footer","social_instagram"];
+const defaults = (type: string, id: string): BuilderSection => ({ id, type: type as any, position: 0, config: { heading: type === "hero" ? "Build your storefront" : "Add " + type.replace("_", " "), text: "Edit this section in the properties panel.", buttonText: "Explore", background: "#111827" } });
+
+export default function Builder({ initial }: { initial?: { storeId: string; storeSlug: string; pageId: string; sections: BuilderSection[]; status?: string; versions?: { id: string; version: number; created_at: string }[] } }) {
+  const [data, setData] = useState(initial);
+  const [selected, setSelected] = useState(0);
+  const [history, setHistory] = useState<BuilderSection[][]>([]);
+  const [future, setFuture] = useState<BuilderSection[][]>([]);
+  const [saving, setSaving] = useState(false);
+  const [viewport, setViewport] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const sections = data?.sections ?? [];
+  const current = sections[selected];
+  const update = (next: BuilderSection[]) => { setHistory(h => [...h, sections]); setFuture([]); setData(d => d ? { ...d, sections: next.map((x, i) => ({ ...x, position: i })) } : d); };
+  const add = (type: string) => { const n = sections.length; update([...sections, defaults(type, crypto.randomUUID())]); setSelected(n); };
+  const undo = () => { const h = history.at(-1); if (!h) return; setFuture(f => [...f, sections]); setHistory(x => x.slice(0, -1)); setData(d => d ? { ...d, sections: h } : d); };
+  const redo = () => { const f = future.at(-1); if (!f) return; setHistory(h => [...h, sections]); setFuture(x => x.slice(0, -1)); setData(d => d ? { ...d, sections: f } : d); };
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (data && history.length) {
+        setSaving(true);
+        const fd = new FormData();
+        fd.set("store_id", data.storeId);
+        fd.set("store_slug", data.storeSlug);
+        fd.set("page_id", data.pageId);
+        fd.set("sections", JSON.stringify(data.sections));
+        saveBuilder(fd).finally(() => setSaving(false));
+      }
+    }, 1200);
+    return () => clearTimeout(id);
+  }, [data?.sections, history.length, data]);
+
+  const props = useMemo(() => current, [current]);
+  if (!data) return <div className="p-8">Create a store and homepage first.</div>;
+
+  return <div className="min-h-screen">
+    <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+      <div><h1 className="font-bold">Website Builder</h1><p className="text-xs text-slate-400">{saving ? "Autosaving…" : "All changes saved"}</p></div>
+      <div className="flex gap-2">
+        <button onClick={undo} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Undo</button>
+        <button onClick={() => setViewport("desktop")} className={"rounded-lg border px-3 py-2 text-xs " + (viewport === "desktop" ? "border-cyan-300" : "border-white/10")}>Desktop</button>
+        <button onClick={() => setViewport("tablet")} className={"rounded-lg border px-3 py-2 text-xs " + (viewport === "tablet" ? "border-cyan-300" : "border-white/10")}>Tablet</button>
+        <button onClick={() => setViewport("mobile")} className={"rounded-lg border px-3 py-2 text-xs " + (viewport === "mobile" ? "border-cyan-300" : "border-white/10")}>Mobile</button>
+        <button onClick={redo} className="rounded-lg border border-white/10 px-3 py-2 text-xs">Redo</button>
+        <form action={publishPage} className="inline"><input type="hidden" name="store_id" value={data.storeId}/><input type="hidden" name="page_id" value={data.pageId}/><input type="hidden" name="store_slug" value={data.storeSlug}/><button className="rounded-lg border border-emerald-400/30 px-3 py-2 text-xs text-emerald-300">Publish</button></form>
+        <a href={"/store/" + data.storeSlug} target="_blank" rel="noreferrer" className="rounded-lg bg-cyan-300 px-3 py-2 text-xs font-semibold text-black">Preview</a>
+      </div>
+    </div>
+    <div className="grid min-h-[calc(100vh-65px)] grid-cols-[180px_1fr_280px]">
+      <aside className="border-r border-white/10 p-3"><p className="mb-3 text-xs uppercase text-slate-500">Components</p>{TYPES.map(t => <button key={t} onClick={() => add(t)} className="mb-1 w-full rounded-lg border border-white/5 px-3 py-2 text-left text-xs hover:bg-white/5">{t}</button>)}</aside>
+      <main className="bg-slate-950/70 p-5">
+        <div className={"mx-auto min-h-[700px] rounded-xl bg-white p-5 text-slate-900 shadow-2xl " + (viewport === "mobile" ? "max-w-sm" : viewport === "tablet" ? "max-w-2xl" : "max-w-4xl")}>
+          <div className="mb-4 flex justify-center gap-2 text-xs text-slate-400"><span>Desktop</span><span>Tablet</span><span>Mobile</span></div>
+          {sections.length === 0 ? <div className="grid min-h-[550px] place-items-center rounded-xl border-2 border-dashed border-slate-200 text-slate-400">Add your first section</div> : sections.map((x, i) => <button key={x.id} onClick={() => setSelected(i)} className={"mb-3 block w-full rounded-xl border p-6 text-left " + (i === selected ? "border-blue-500 bg-blue-50" : "border-slate-200")}><span className="text-xs uppercase text-slate-400">{x.type}</span><h3 className="mt-2 text-lg font-semibold">{String(x.config.heading ?? x.type)}</h3><p className="mt-1 text-sm text-slate-500">{String(x.config.text ?? "")}</p></button>)}
+        </div>
+      </main>
+      <aside className="border-l border-white/10 p-4">{props ? <><p className="text-xs uppercase text-slate-500">Properties</p><p className="mt-2 font-semibold">{props.type}</p><label className="mt-5 block text-xs text-slate-400">Heading</label><input value={String(props.config.heading ?? "")} onChange={e => update(sections.map((x, i) => i === selected ? { ...x, config: { ...x.config, heading: e.target.value } } : x))} className="mt-1 w-full rounded-lg bg-white/5 p-2 text-sm"/><label className="mt-4 block text-xs text-slate-400">Text</label><textarea value={String(props.config.text ?? "")} onChange={e => update(sections.map((x, i) => i === selected ? { ...x, config: { ...x.config, text: e.target.value } } : x))} className="mt-1 w-full rounded-lg bg-white/5 p-2 text-sm"/><button onClick={() => update(sections.filter((_, i) => i !== selected))} className="mt-5 rounded-lg border border-red-400/30 px-3 py-2 text-xs text-red-300">Delete section</button></> : <p className="text-sm text-slate-500">Select a section</p>}</aside>
+    </div>
+  </div>;
+}
